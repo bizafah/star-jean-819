@@ -63,7 +63,10 @@ let currentFilter = 'all';
 
 function renderCard(product, container) {
   const finalPrice = getFinalPrice(product);
-  const hasDiscount = product.discount > 0;
+  const hasDiscount = (product.discountedAmount > 0) || (product.discount > 0);
+  const discLabel = product.discountedAmount > 0
+    ? `- ${formatPrice(product.discountedAmount)}`
+    : (product.discount > 0 ? `${product.discount}% OFF` : '');
   const imgSrc = product.images && product.images[0] ? product.images[0] : 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'300\' height=\'300\'%3E%3Crect fill=\'%23eee\' width=\'300\' height=\'300\'/%3E%3Ctext fill=\'%23aaa\' font-family=\'sans-serif\' font-size=\'18\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ENo Image%3C/text%3E%3C/svg%3E';
 
   const card = document.createElement('div');
@@ -72,7 +75,7 @@ function renderCard(product, container) {
     <div class="product-img-wrap">
       <img src="${imgSrc}" alt="${product.name}" loading="lazy" />
       ${product.topSelling ? '<span class="product-badge top">Top Selling</span>' : ''}
-      ${hasDiscount ? `<span class="product-badge" style="top:${product.topSelling ? '40px' : '10px'}">${product.discount}% OFF</span>` : ''}
+      ${hasDiscount ? `<span class="product-badge" style="top:${product.topSelling ? '40px' : '10px'}">${discLabel}</span>` : ''}
     </div>
     <div class="product-info">
       <div class="product-category">${catLabel(product.category)}</div>
@@ -175,4 +178,10 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTopSelling();
   renderAllProducts();
   updateCartBadge();
+
+  // Re-render when fresh Sheets data arrives
+  DataEvents.on('productsLoaded', () => {
+    renderTopSelling();
+    renderAllProducts();
+  });
 });

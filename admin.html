@@ -102,8 +102,8 @@
               <input type="number" id="addPrice" placeholder="e.g. 1500" min="0" required />
             </div>
             <div class="form-group">
-              <label>Discount (%)</label>
-              <input type="number" id="addDiscount" placeholder="e.g. 10" min="0" max="100" value="0" />
+              <label>Discounted Amount (Rs)</label>
+              <input type="number" id="addDiscountedAmount" placeholder="e.g. 200 (leave 0 for no discount)" min="0" value="0" />
             </div>
             <div class="form-group full">
               <label>Colors Available</label>
@@ -177,7 +177,7 @@
                   </select>
                 </div>
                 <div class="form-group"><label>Price (Rs) *</label><input type="number" id="editPrice" min="0" required /></div>
-                <div class="form-group"><label>Discount (%)</label><input type="number" id="editDiscount" min="0" max="100" /></div>
+                <div class="form-group"><label>Discounted Amount (Rs)</label><input type="number" id="editDiscountedAmount" min="0" placeholder="0 = no discount" /></div>
                 <div class="form-group full"><label>Colors</label><input type="text" id="editColors" placeholder="Red, Blue, Black" /></div>
                 <div class="form-group full"><label>Description</label><textarea id="editDescription" rows="3"></textarea></div>
                 <div class="form-group full">

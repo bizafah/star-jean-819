@@ -1,80 +1,178 @@
 /* ============================================================
-   data.js  –  Shared data layer
-   Stores products & orders in localStorage.
-   Syncs to Google Sheets via the deployed Apps Script URL.
+   data.js  –  Centralized data layer  (v2)
+
+   Google Sheets = single source of truth for ALL devices.
+   localStorage  = read-cache only (speeds up page loads,
+                   works offline as fallback).
+
+   Flow:
+     • On every page load → fetch fresh data from Sheets
+       and update the local cache.
+     • All writes go DIRECTLY to Sheets, then refresh cache.
+     • Any device reading the site always gets Sheets data.
    ============================================================ */
 
-// ── Replace this with your deployed Apps Script Web App URL ──
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzUvdDfGRKB3_aI9eJuu9xJQ_UUXphklfQcDhNWV6_CAfklH4j4hi0AUeOQUw3KKzNwlQ/exec';
 
-// ───────── PRODUCTS ─────────
+// ── tiny event bus so pages can react when data arrives ──────
+const DataEvents = {
+  _cbs: {},
+  on(ev, cb)   { (this._cbs[ev] = this._cbs[ev] || []).push(cb); },
+  emit(ev, d)  { (this._cbs[ev] || []).forEach(cb => cb(d)); }
+};
+
+// ═══════════════════════════════════════════════════════════
+//  PRODUCTS
+// ═══════════════════════════════════════════════════════════
+
 function getProducts() {
   try { return JSON.parse(localStorage.getItem('sj_products') || '[]'); }
   catch { return []; }
 }
 
-function saveProducts(products) {
+function _saveProductsCache(products) {
   localStorage.setItem('sj_products', JSON.stringify(products));
 }
 
-function addProduct(product) {
-  const products = getProducts();
-  product.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  product.createdAt = new Date().toISOString();
-  products.push(product);
-  saveProducts(products);
-  syncProductToSheet(product);
-  return product;
-}
-
-function updateProduct(id, updates) {
-  const products = getProducts();
-  const idx = products.findIndex(p => p.id === id);
-  if (idx === -1) return null;
-  products[idx] = { ...products[idx], ...updates, updatedAt: new Date().toISOString() };
-  saveProducts(products);
-  return products[idx];
-}
-
-function deleteProduct(id) {
-  const products = getProducts().filter(p => p.id !== id);
-  saveProducts(products);
+/** Fetch fresh products from Sheets → update cache → return array */
+async function fetchProducts() {
+  if (!_sheetReady()) return getProducts();
+  try {
+    const res  = await fetch(`${SHEET_URL}?action=getProducts`);
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      _saveProductsCache(json.data);
+      DataEvents.emit('productsLoaded', json.data);
+      return json.data;
+    }
+  } catch (e) { console.warn('fetchProducts failed, using cache:', e); }
+  return getProducts();
 }
 
 function getTopSelling() {
   return getProducts().filter(p => p.topSelling === true);
 }
 
-// ───────── ORDERS ─────────
+/** Add product: POST to Sheets, refresh cache */
+async function addProduct(product) {
+  product.id        = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  product.createdAt = new Date().toISOString();
+
+  // Optimistic local cache
+  const products = getProducts();
+  products.push(product);
+  _saveProductsCache(products);
+
+  await _post({ type: 'product', data: product });
+  return product;
+}
+
+/** Update product: POST to Sheets, refresh cache */
+async function updateProduct(id, updates) {
+  const products = getProducts();
+  const idx = products.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  products[idx] = { ...products[idx], ...updates, updatedAt: new Date().toISOString() };
+  _saveProductsCache(products);
+  await _post({ type: 'product', data: products[idx] });
+  return products[idx];
+}
+
+/** Delete product: POST to Sheets, remove from cache */
+async function deleteProduct(id) {
+  const products = getProducts().filter(p => p.id !== id);
+  _saveProductsCache(products);
+  await _post({ type: 'deleteProduct', data: { id } });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ORDERS
+// ═══════════════════════════════════════════════════════════
+
 function getOrders() {
   try { return JSON.parse(localStorage.getItem('sj_orders') || '[]'); }
   catch { return []; }
 }
 
-function saveOrders(orders) {
+function _saveOrdersCache(orders) {
   localStorage.setItem('sj_orders', JSON.stringify(orders));
 }
 
-function addOrder(order) {
-  const orders = getOrders();
-  order.id = 'ORD-' + Date.now();
+/** Fetch fresh orders from Sheets → update cache → return array */
+async function fetchOrders() {
+  if (!_sheetReady()) return getOrders();
+  try {
+    const res  = await fetch(`${SHEET_URL}?action=getOrders`);
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      _saveOrdersCache(json.data);
+      DataEvents.emit('ordersLoaded', json.data);
+      return json.data;
+    }
+  } catch (e) { console.warn('fetchOrders failed, using cache:', e); }
+  return getOrders();
+}
+
+/** Place order: POST to Sheets + deduct stock, update cache */
+async function addOrder(order) {
+  order.id        = 'ORD-' + Date.now();
   order.createdAt = new Date().toISOString();
-  order.status = 'Pending';
+  order.status    = 'Pending';
+
+  // Optimistic local cache
+  const orders = getOrders();
   orders.push(order);
-  saveOrders(orders);
-  syncOrderToSheet(order);
+  _saveOrdersCache(orders);
+
+  // 1. Save order row in Sheets
+  await _post({ type: 'order', data: order });
+
+  // 2. Deduct stock in Sheets + local cache
+  await deductStock(order.items);
+
   return order;
 }
 
-function updateOrderStatus(id, status) {
+/** Update order status: POST to Sheets + update cache */
+async function updateOrderStatus(id, status) {
   const orders = getOrders();
-  const idx = orders.findIndex(o => o.id === id);
-  if (idx === -1) return;
-  orders[idx].status = status;
-  saveOrders(orders);
+  const idx    = orders.findIndex(o => o.id === id);
+  if (idx !== -1) {
+    orders[idx].status = status;
+    _saveOrdersCache(orders);
+  }
+  await _post({ type: 'updateOrderStatus', data: { id, status } });
 }
 
-// ───────── CART ─────────
+// ═══════════════════════════════════════════════════════════
+//  STOCK DEDUCTION
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * items = [{ productId, size, quantity }, ...]
+ * Reduces stock locally AND in Sheets.
+ */
+async function deductStock(items) {
+  if (!items || items.length === 0) return;
+
+  // Update local cache
+  const products = getProducts();
+  items.forEach(item => {
+    const p = products.find(pr => pr.id === item.productId);
+    if (!p || !p.stock) return;
+    const cur = parseInt(p.stock[item.size]) || 0;
+    p.stock[item.size] = Math.max(0, cur - item.quantity);
+  });
+  _saveProductsCache(products);
+
+  // Push to Sheets
+  await _post({ type: 'updateStock', data: { items } });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CART  (device-local – intentional)
+// ═══════════════════════════════════════════════════════════
+
 function getCart() {
   try { return JSON.parse(localStorage.getItem('sj_cart') || '[]'); }
   catch { return []; }
@@ -86,27 +184,24 @@ function saveCart(cart) {
 }
 
 function addToCart(productId, size, color, quantity = 1) {
-  const products = getProducts();
-  const product = products.find(p => p.id === productId);
+  const products  = getProducts();
+  const product   = products.find(p => p.id === productId);
   if (!product) return { success: false, message: 'Product not found' };
 
-  // Check stock
-  const stockKey = size;
-  const available = product.stock && product.stock[stockKey] !== undefined
-    ? parseInt(product.stock[stockKey])
-    : 0;
+  const available = product.stock && product.stock[size] !== undefined
+    ? parseInt(product.stock[size]) : 0;
   if (available < quantity) return { success: false, message: 'Insufficient stock' };
 
-  const cart = getCart();
+  const cart     = getCart();
   const existing = cart.find(i => i.productId === productId && i.size === size && i.color === color);
   if (existing) {
     existing.quantity += quantity;
   } else {
     cart.push({
       productId,
-      name: product.name,
-      price: getFinalPrice(product),
-      image: product.images && product.images[0] ? product.images[0] : '',
+      name:     product.name,
+      price:    getFinalPrice(product),
+      image:    product.images && product.images[0] ? product.images[0] : '',
       size,
       color,
       quantity,
@@ -118,14 +213,16 @@ function addToCart(productId, size, color, quantity = 1) {
 }
 
 function removeFromCart(productId, size, color) {
-  const cart = getCart().filter(i => !(i.productId === productId && i.size === size && i.color === color));
-  saveCart(cart);
+  saveCart(getCart().filter(i => !(i.productId === productId && i.size === size && i.color === color)));
 }
 
 function updateCartQty(productId, size, color, quantity) {
   const cart = getCart();
   const item = cart.find(i => i.productId === productId && i.size === size && i.color === color);
-  if (item) { item.quantity = quantity; if (item.quantity <= 0) removeFromCart(productId, size, color); else saveCart(cart); }
+  if (!item) return;
+  item.quantity = quantity;
+  if (item.quantity <= 0) removeFromCart(productId, size, color);
+  else saveCart(cart);
 }
 
 function clearCart() {
@@ -134,7 +231,7 @@ function clearCart() {
 }
 
 function getCartTotal() {
-  return getCart().reduce((sum, i) => sum + i.price * i.quantity, 0);
+  return getCart().reduce((s, i) => s + i.price * i.quantity, 0);
 }
 
 function updateCartBadge() {
@@ -143,41 +240,60 @@ function updateCartBadge() {
   if (badge) badge.textContent = count;
 }
 
-// ───────── HELPERS ─────────
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Final price = price – discountedAmount (Rs).
+ * discountedAmount replaces the old percentage discount.
+ * Legacy products that still have a `discount` % field are
+ * handled gracefully for backward compatibility.
+ */
 function getFinalPrice(product) {
   const price = parseFloat(product.price) || 0;
-  const discount = parseFloat(product.discount) || 0;
-  return discount > 0 ? Math.round(price - (price * discount / 100)) : price;
+
+  // New field: discountedAmount in Rs
+  if (product.discountedAmount !== undefined && product.discountedAmount !== null) {
+    const off = parseFloat(product.discountedAmount) || 0;
+    return off > 0 ? Math.round(price - off) : price;
+  }
+
+  // Legacy fallback: discount %
+  const pct = parseFloat(product.discount) || 0;
+  return pct > 0 ? Math.round(price - (price * pct / 100)) : price;
 }
 
 function formatPrice(amount) {
   return 'Rs ' + Number(amount).toLocaleString('en-PK');
 }
 
-// ───────── GOOGLE SHEETS SYNC ─────────
-async function syncProductToSheet(product) {
-  if (!SHEET_URL || SHEET_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
-  try {
-    await fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'product', data: product })
-    });
-  } catch (e) { console.warn('Sheet sync failed:', e); }
+function _sheetReady() {
+  return SHEET_URL && SHEET_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
 }
 
-async function syncOrderToSheet(order) {
-  if (!SHEET_URL || SHEET_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') return;
+// ── Generic POST to Apps Script ──────────────────────────────
+async function _post(payload) {
+  if (!_sheetReady()) return;
   try {
     await fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
+      method:  'POST',
+      mode:    'no-cors',       // Apps Script doesn't send CORS headers on POST
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'order', data: order })
+      body:    JSON.stringify(payload)
     });
-  } catch (e) { console.warn('Sheet sync failed:', e); }
+  } catch (e) { console.warn('Sheet POST failed:', e); }
 }
 
-// Init badge on load
-document.addEventListener('DOMContentLoaded', updateCartBadge);
+// ── Boot: fetch fresh data on every page load ────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  updateCartBadge();
+
+  if (_sheetReady()) {
+    // Fetch products (and orders if on admin page)
+    fetchProducts().then(() => {
+      // Re-render if the page has already set up a render hook
+      DataEvents.emit('ready', null);
+    });
+  }
+});

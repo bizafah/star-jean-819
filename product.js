@@ -23,14 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const id = params.get('id');
   if (!id) { showNotFound(); return; }
 
-  const products = getProducts();
-  currentProduct = products.find(p => p.id === id);
-  if (!currentProduct) { showNotFound(); return; }
+  // Render immediately from cache, then re-render when Sheets data arrives
+  const renderFromId = () => {
+    const products = getProducts();
+    currentProduct = products.find(p => p.id === id);
+    if (!currentProduct) { showNotFound(); return; }
+    renderProduct(currentProduct);
+    renderRelated(currentProduct);
+  };
 
-  renderProduct(currentProduct);
-  renderRelated(currentProduct);
+  renderFromId();
 
-  // Auto-open add-to-cart flow if redirected from quick-add
+  DataEvents.on('productsLoaded', () => {
+    if (currentProduct) renderFromId();
+  });
+
   if (params.get('action') === 'addcart') {
     document.querySelector('.size-options')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -43,7 +50,10 @@ function renderProduct(p) {
   document.getElementById('productLoading').style.display = 'none';
 
   const finalPrice = getFinalPrice(p);
-  const hasDiscount = p.discount > 0;
+  const hasDiscount = (p.discountedAmount > 0) || (p.discount > 0);
+  const discLabel = p.discountedAmount > 0
+    ? `- ${formatPrice(p.discountedAmount)}`
+    : (p.discount > 0 ? `${p.discount}% OFF` : '');
   const images = p.images && p.images.length > 0 ? p.images : [''];
   const colors = p.colors ? p.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
 
@@ -73,7 +83,7 @@ function renderProduct(p) {
         <div class="pd-price-row">
           <span class="pd-price">${formatPrice(finalPrice)}</span>
           ${hasDiscount ? `<span class="pd-original">${formatPrice(p.price)}</span>` : ''}
-          ${hasDiscount ? `<span class="pd-discount">${p.discount}% OFF</span>` : ''}
+          ${hasDiscount ? `<span class="pd-discount">${discLabel}</span>` : ''}
         </div>
 
         <div class="pd-divider"></div>

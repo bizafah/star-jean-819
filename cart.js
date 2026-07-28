@@ -110,7 +110,7 @@ function removeItem(productId, size, color) {
 }
 
 // ───────── SUBMIT ORDER ─────────
-function submitOrder(e) {
+async function submitOrder(e) {
   e.preventDefault();
   const cart = getCart();
   if (cart.length === 0) { showToast('Your cart is empty'); return; }
@@ -146,14 +146,18 @@ function submitOrder(e) {
     paymentMethod: 'Cash on Delivery'
   };
 
-  // Small delay to show loading state
-  setTimeout(() => {
-    const savedOrder = addOrder(order);
+  // Place order (addOrder now auto-deducts stock in Sheets + local cache)
+  try {
+    const savedOrder = await addOrder(order);
     clearCart();
     showSuccessModal(savedOrder);
+  } catch (err) {
+    console.error('Order failed:', err);
+    showToast('Something went wrong. Please try again.');
+  } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm Order';
-  }, 600);
+  }
 }
 
 // ───────── SUCCESS MODAL ─────────
