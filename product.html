@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product – Star Jeans 819</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="product.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <div class="nav-logo">
+        <img src="logo.png" alt="Star Jeans 819" class="logo-img" />
+        <span class="brand-name">Star Jeans 819</span>
+      </div>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#home">Home</a></li>
+        <li><a href="index.html#top-selling">Top Selling</a></li>
+        <li><a href="index.html#categories">Categories</a></li>
+        <li><a href="index.html#products">Products</a></li>
+        <li><a href="index.html#contact">Contact</a></li>
+      </ul>
+      <div class="nav-actions">
+        <button class="cart-btn" onclick="window.location.href='cart.html'">
+          <i class="fas fa-shopping-cart"></i>
+          <span class="cart-count" id="cartCount">0</span>
+        </button>
+        <button class="hamburger" id="hamburger" onclick="toggleMenu()">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- BREADCRUMB -->
+  <div class="breadcrumb">
+    <div class="breadcrumb-inner">
+      <a href="index.html">Home</a>
+      <i class="fas fa-chevron-right"></i>
+      <a href="index.html#products">Products</a>
+      <i class="fas fa-chevron-right"></i>
+      <span id="breadcrumbName">Product</span>
+    </div>
+  </div>
+
+  <!-- PRODUCT DETAIL -->
+  <main class="product-page" id="productPage">
+    <!-- Populated by product.js -->
+    <div class="product-loading" id="productLoading">
+      <div class="spinner"></div>
+      <p>Loading product...</p>
+    </div>
+    <div class="product-not-found" id="productNotFound" style="display:none;">
+      <i class="fas fa-box-open"></i>
+      <h2>Product not found</h2>
+      <a href="index.html#products" class="btn-primary">Back to Products</a>
+    </div>
+  </main>
+
+  <!-- RELATED PRODUCTS -->
+  <section class="related-section" id="relatedSection" style="display:none;">
+    <div class="section-container">
+      <div class="section-header">
+        <h2>You May Also Like</h2>
+      </div>
+      <div class="products-grid" id="relatedGrid"></div>
+    </div>
+  </section>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="data.js"></script>
+  <script src="product.js"></script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel – Star Jeans 819</title>
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-box">
+      <img src="logo.png" alt="Star Jeans 819" class="login-logo" />
+      <h1>Star Jeans 819</h1>
+      <p>Admin Panel</p>
+      <form onsubmit="adminLogin(event)">
+        <div class="login-field">
+          <label>Password</label>
+          <div class="pwd-wrap">
+            <input type="password" id="adminPwd" placeholder="Enter password" autocomplete="current-password" />
+            <button type="button" class="toggle-pwd" onclick="togglePwd()"><i class="fas fa-eye" id="eyeIcon"></i></button>
+          </div>
+        </div>
+        <div class="login-error" id="loginError" style="display:none;">Incorrect password. Try again.</div>
+        <button type="submit" class="btn-login">Login <i class="fas fa-arrow-right"></i></button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div class="admin-panel" id="adminPanel" style="display:none;">
+
+    <!-- SIDEBAR -->
+    <aside class="admin-sidebar" id="adminSidebar">
+      <div class="sidebar-brand">
+        <img src="logo.png" alt="Logo" />
+        <div>
+          <span class="sb-title">Star Jeans 819</span>
+          <span class="sb-sub">Admin Panel</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" onclick="switchTab('addProduct', this)">
+          <i class="fas fa-plus-circle"></i><span>Add Product</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('updateProduct', this)">
+          <i class="fas fa-edit"></i><span>Update Product</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('viewOrders', this)">
+          <i class="fas fa-receipt"></i><span>View Orders</span>
+          <span class="badge" id="pendingBadge"></span>
+        </button>
+      </nav>
+      <button class="btn-logout" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </aside>
+
+    <!-- MOBILE TOP BAR -->
+    <div class="admin-topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <span>Star Jeans 819 – Admin</span>
+      <button class="btn-logout-sm" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i></button>
+    </div>
+
+    <!-- CONTENT -->
+    <main class="admin-content" id="adminContent">
+
+      <!-- ── TAB: ADD PRODUCT ── -->
+      <div class="tab-panel active" id="tab-addProduct">
+        <div class="tab-header">
+          <h2><i class="fas fa-plus-circle"></i> Add New Product</h2>
+        </div>
+        <form class="product-form" id="addProductForm" onsubmit="handleAddProduct(event)">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Product Images (max 12) *</label>
+              <div class="image-upload-area" id="addImageArea" onclick="document.getElementById('addImageInput').click()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Click to upload images</p>
+                <span>JPG, PNG, WEBP – up to 12 images</span>
+              </div>
+              <input type="file" id="addImageInput" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'addImagePreview')" />
+              <div class="image-preview-grid" id="addImagePreview"></div>
+            </div>
+
+            <div class="form-group">
+              <label>Product Name *</label>
+              <input type="text" id="addName" placeholder="e.g. Classic Blue Jeans" required />
+            </div>
+            <div class="form-group">
+              <label>Category *</label>
+              <select id="addCategory" required>
+                <option value="">Select category</option>
+                <option value="tshirt">T-Shirt</option>
+                <option value="jeans">Jeans</option>
+                <option value="hoddie">Hoodie</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Price (Rs) *</label>
+              <input type="number" id="addPrice" placeholder="e.g. 1500" min="0" required />
+            </div>
+            <div class="form-group">
+              <label>Discount (%)</label>
+              <input type="number" id="addDiscount" placeholder="e.g. 10" min="0" max="100" value="0" />
+            </div>
+            <div class="form-group full">
+              <label>Colors Available</label>
+              <input type="text" id="addColors" placeholder="e.g. Red, Blue, Black (comma separated)" />
+            </div>
+            <div class="form-group full">
+              <label>Description</label>
+              <textarea id="addDescription" rows="4" placeholder="Describe the product..."></textarea>
+            </div>
+
+            <!-- STOCK PER SIZE -->
+            <div class="form-group full">
+              <label>Stock per Size *</label>
+              <div class="stock-grid">
+                <div class="stock-item"><span>Extra Small (XS)</span><input type="number" id="stock_XS" min="0" value="0" placeholder="0" /></div>
+                <div class="stock-item"><span>Small (S)</span><input type="number" id="stock_S" min="0" value="0" placeholder="0" /></div>
+                <div class="stock-item"><span>Medium (M)</span><input type="number" id="stock_M" min="0" value="0" placeholder="0" /></div>
+                <div class="stock-item"><span>Large (L)</span><input type="number" id="stock_L" min="0" value="0" placeholder="0" /></div>
+                <div class="stock-item"><span>Extra Large (XL)</span><input type="number" id="stock_XL" min="0" value="0" placeholder="0" /></div>
+              </div>
+            </div>
+
+            <div class="form-group full">
+              <label class="checkbox-label">
+                <input type="checkbox" id="addTopSelling" />
+                <span class="checkmark"></span>
+                Mark as <strong>Top Selling</strong> (shows on homepage)
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="btn-submit"><i class="fas fa-plus"></i> Add Product</button>
+        </form>
+      </div>
+
+      <!-- ── TAB: UPDATE PRODUCT ── -->
+      <div class="tab-panel" id="tab-updateProduct">
+        <div class="tab-header">
+          <h2><i class="fas fa-edit"></i> Update Products</h2>
+          <div class="tab-actions">
+            <input type="text" class="search-input" id="updateSearch" placeholder="Search products..." oninput="renderUpdateList()" />
+          </div>
+        </div>
+        <div id="updateProductList" class="update-product-list"></div>
+
+        <!-- Edit Modal -->
+        <div class="edit-modal-overlay" id="editModalOverlay" style="display:none;" onclick="closeEditModal(event)">
+          <div class="edit-modal" id="editModal">
+            <div class="edit-modal-header">
+              <h3>Edit Product</h3>
+              <button onclick="closeEditModal()" class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="editProductForm" onsubmit="handleUpdateProduct(event)">
+              <input type="hidden" id="editProductId" />
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label>Images (max 12)</label>
+                  <div class="image-upload-area" onclick="document.getElementById('editImageInput').click()">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Click to add/replace images</p>
+                  </div>
+                  <input type="file" id="editImageInput" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'editImagePreview', true)" />
+                  <div class="image-preview-grid" id="editImagePreview"></div>
+                </div>
+                <div class="form-group"><label>Name *</label><input type="text" id="editName" required /></div>
+                <div class="form-group">
+                  <label>Category *</label>
+                  <select id="editCategory" required>
+                    <option value="tshirt">T-Shirt</option>
+                    <option value="jeans">Jeans</option>
+                    <option value="hoddie">Hoodie</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>Price (Rs) *</label><input type="number" id="editPrice" min="0" required /></div>
+                <div class="form-group"><label>Discount (%)</label><input type="number" id="editDiscount" min="0" max="100" /></div>
+                <div class="form-group full"><label>Colors</label><input type="text" id="editColors" placeholder="Red, Blue, Black" /></div>
+                <div class="form-group full"><label>Description</label><textarea id="editDescription" rows="3"></textarea></div>
+                <div class="form-group full">
+                  <label>Stock per Size</label>
+                  <div class="stock-grid">
+                    <div class="stock-item"><span>XS</span><input type="number" id="editStock_XS" min="0" /></div>
+                    <div class="stock-item"><span>S</span><input type="number" id="editStock_S" min="0" /></div>
+                    <div class="stock-item"><span>M</span><input type="number" id="editStock_M" min="0" /></div>
+                    <div class="stock-item"><span>L</span><input type="number" id="editStock_L" min="0" /></div>
+                    <div class="stock-item"><span>XL</span><input type="number" id="editStock_XL" min="0" /></div>
+                  </div>
+                </div>
+                <div class="form-group full">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="editTopSelling" />
+                    <span class="checkmark"></span>
+                    Mark as <strong>Top Selling</strong>
+                  </label>
+                </div>
+              </div>
+              <div class="edit-modal-footer">
+                <button type="button" class="btn-delete-product" onclick="confirmDeleteProduct()"><i class="fas fa-trash"></i> Delete</button>
+                <button type="submit" class="btn-submit"><i class="fas fa-save"></i> Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: VIEW ORDERS ── -->
+      <div class="tab-panel" id="tab-viewOrders">
+        <div class="tab-header">
+          <h2><i class="fas fa-receipt"></i> Orders</h2>
+          <div class="tab-actions">
+            <select id="orderStatusFilter" onchange="renderOrders()">
+              <option value="all">All Orders</option>
+              <option value="Pending">Pending</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="Shipped">Shipped</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+        <div id="ordersList"></div>
+        <div class="no-orders" id="noOrdersMsg" style="display:none;">
+          <i class="fas fa-inbox"></i>
+          <p>No orders yet.</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ADMIN TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="data.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

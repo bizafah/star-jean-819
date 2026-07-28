@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart & Checkout – Star Jeans 819</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="cart.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <div class="nav-logo">
+        <img src="logo.png" alt="Star Jeans 819" class="logo-img" />
+        <span class="brand-name">Star Jeans 819</span>
+      </div>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#home">Home</a></li>
+        <li><a href="index.html#products">Products</a></li>
+        <li><a href="index.html#contact">Contact</a></li>
+      </ul>
+      <div class="nav-actions">
+        <button class="cart-btn" onclick="window.location.href='cart.html'">
+          <i class="fas fa-shopping-cart"></i>
+          <span class="cart-count" id="cartCount">0</span>
+        </button>
+        <button class="hamburger" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- BREADCRUMB -->
+  <div class="breadcrumb">
+    <div class="breadcrumb-inner">
+      <a href="index.html">Home</a>
+      <i class="fas fa-chevron-right"></i>
+      <span>Cart & Checkout</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main class="cart-main">
+
+    <!-- EMPTY STATE -->
+    <div class="cart-empty" id="cartEmpty" style="display:none;">
+      <i class="fas fa-shopping-cart"></i>
+      <h2>Your cart is empty</h2>
+      <p>Add some products first!</p>
+      <a href="index.html#products" class="btn-primary">Browse Products</a>
+    </div>
+
+    <!-- CART + CHECKOUT -->
+    <div class="cart-layout" id="cartLayout">
+      <!-- LEFT: Cart Items -->
+      <div class="cart-items-col">
+        <h2 class="cart-title"><i class="fas fa-shopping-bag"></i> Your Cart</h2>
+        <div id="cartItemsList"></div>
+      </div>
+
+      <!-- RIGHT: Order Summary + Checkout Form -->
+      <div class="cart-side">
+        <!-- Order Summary -->
+        <div class="order-summary">
+          <h3>Order Summary</h3>
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span id="summarySubtotal">Rs 0</span>
+          </div>
+          <div class="summary-row">
+            <span>Delivery Charges</span>
+            <span class="delivery-fee">Rs 350</span>
+          </div>
+          <div class="summary-row total-row">
+            <span>Total</span>
+            <span id="summaryTotal">Rs 350</span>
+          </div>
+        </div>
+
+        <!-- Checkout Form -->
+        <div class="checkout-form-box">
+          <h3><i class="fas fa-user"></i> Your Details</h3>
+          <p class="form-note">Please fill in your details to confirm the order.</p>
+          <form id="checkoutForm" onsubmit="submitOrder(event)">
+            <div class="form-group">
+              <label for="custName">Full Name *</label>
+              <input type="text" id="custName" placeholder="e.g. Ali Hassan" required />
+            </div>
+            <div class="form-group">
+              <label for="custPhone">Phone Number *</label>
+              <input type="tel" id="custPhone" placeholder="e.g. 0302 1234567" required pattern="[0-9+\s\-]{10,15}" />
+            </div>
+            <div class="form-group">
+              <label for="custAddress">Delivery Address *</label>
+              <textarea id="custAddress" rows="3" placeholder="House No., Street, City" required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="custNotes">Order Notes (optional)</label>
+              <textarea id="custNotes" rows="2" placeholder="Any special instructions..."></textarea>
+            </div>
+            <button type="submit" class="btn-confirm-order" id="confirmBtn">
+              <i class="fas fa-check-circle"></i> Confirm Order
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ORDER SUCCESS MODAL -->
+  <div class="modal-overlay" id="successModal" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-icon"><i class="fas fa-check-circle"></i></div>
+      <h2>Order Placed!</h2>
+      <p id="successMsg">Your order has been confirmed. We'll contact you soon.</p>
+      <div class="modal-order-id" id="modalOrderId"></div>
+      <button class="btn-primary" onclick="window.location.href='index.html'">Continue Shopping</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="data.js"></script>
+  <script src="cart.js"></script>
+</body>
+</html>
