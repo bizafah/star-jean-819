@@ -21,8 +21,8 @@ const SHEET_NAME_ORDERS   = 'Orders';
 const PRODUCT_HEADERS = [
   'ID', 'Name', 'Category', 'Price (Rs)', 'Discounted Amount (Rs)', 'Final Price (Rs)',
   'Colors', 'Description', 'Top Selling',
-  'Stock XS', 'Stock S', 'Stock M', 'Stock L', 'Stock XL',
-  'Images Count', 'Created At', 'Updated At'
+  'Stock (JSON)', 'Stock Summary',
+  'Images Count', 'Created At', 'Updated At', 'Images (JSON)'
 ];
 
 const ORDER_HEADERS = [
@@ -84,34 +84,35 @@ function doPost(e) {
 function getAllProducts() {
   const sheet = getOrCreateSheet(SHEET_NAME_PRODUCTS, PRODUCT_HEADERS);
   const rows  = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return []; // header only
+  if (rows.length <= 1) return [];
 
   const products = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    if (!r[0]) continue; // skip empty rows
+    if (!r[0]) continue;
 
-    // Images are stored in a hidden extra column (col 17 onwards) as JSON string
+    // Col 14 = Images JSON
     let images = [];
-    try { images = JSON.parse(r[17] || '[]'); } catch { images = []; }
+    try { images = JSON.parse(r[14] || '[]'); } catch { images = []; }
 
-    // Stock stored in cols 9-13 (0-indexed)
-    const stock = { XS: Number(r[9])||0, S: Number(r[10])||0, M: Number(r[11])||0, L: Number(r[12])||0, XL: Number(r[13])||0 };
+    // Col 9 = Stock JSON  e.g. {"XS":5,"S":3} or {"26":10,"28":8}
+    let stock = {};
+    try { stock = JSON.parse(r[9] || '{}'); } catch { stock = {}; }
 
     products.push({
       id:               String(r[0]),
       name:             String(r[1]),
       category:         String(r[2]),
       price:            Number(r[3]) || 0,
-      discountedAmount: Number(r[4]) || 0,   // Rs amount off (replaces % discount)
+      discountedAmount: Number(r[4]) || 0,
       finalPrice:       Number(r[5]) || 0,
       colors:           String(r[6] || ''),
       description:      String(r[7] || ''),
       topSelling:       r[8] === 'Yes' || r[8] === true,
       stock,
       images,
-      createdAt:        String(r[15] || ''),
-      updatedAt:        String(r[16] || '')
+      createdAt:        String(r[12] || ''),
+      updatedAt:        String(r[13] || '')
     });
   }
   return products;
@@ -162,9 +163,16 @@ function saveProduct(p) {
   const discountedAmt   = parseFloat(p.discountedAmount) || 0;
   const finalPrice      = discountedAmt > 0 ? Math.round(price - discountedAmt) : price;
   const stock           = p.stock || {};
+  const stockJSON       = JSON.stringify(stock);
   const imagesJSON      = JSON.stringify(p.images || []);
 
-  // Cols 0-16 (visible), col 17 = images JSON (hidden / extra)
+  // Human-readable stock summary for easy reading in the sheet
+  const stockSummary = Object.entries(stock)
+    .filter(([,qty]) => qty > 0)
+    .map(([size, qty]) => `${size}:${qty}`)
+    .join(', ') || 'Out of stock';
+
+  // Cols 0-13 (visible) + col 14 = images JSON
   const row = [
     p.id,
     p.name,
@@ -172,28 +180,23 @@ function saveProduct(p) {
     price,
     discountedAmt,
     finalPrice,
-    p.colors       || '',
-    p.description  || '',
-    p.topSelling   ? 'Yes' : 'No',
-    stock.XS || 0,
-    stock.S  || 0,
-    stock.M  || 0,
-    stock.L  || 0,
-    stock.XL || 0,
-    p.images ? p.images.length : 0,
-    p.createdAt  || new Date().toISOString(),
-    p.updatedAt  || '',
-    imagesJSON   // col 17 – stores base64 images as JSON
+    p.colors      || '',
+    p.description || '',
+    p.topSelling  ? 'Yes' : 'No',
+    stockJSON,          // col 9  – full stock as JSON
+    stockSummary,       // col 10 – human readable
+    p.images ? p.images.length : 0,  // col 11
+    p.createdAt  || new Date().toISOString(),  // col 12
+    p.updatedAt  || '',  // col 13
+    imagesJSON           // col 14 – base64 images
   ];
 
-  // Update if exists
   for (let i = 1; i < allData.length; i++) {
     if (String(allData[i][0]) === String(p.id)) {
       sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
       return;
     }
   }
-  // New row
   sheet.appendRow(row);
   sheet.autoResizeColumns(1, PRODUCT_HEADERS.length);
 }
@@ -281,19 +284,27 @@ function applyStockDeduction(items) {
   const sheet   = getOrCreateSheet(SHEET_NAME_PRODUCTS, PRODUCT_HEADERS);
   const allData = sheet.getDataRange().getValues();
 
-  // Size → column index map (0-based in row, 1-based for getRange)
-  const sizeColMap = { XS: 10, S: 11, M: 12, L: 13, XL: 14 }; // 1-indexed sheet cols
+  // Col 9 = stock JSON (1-indexed col 10), Col 10 = stock summary (col 11)
+  const STOCK_COL   = 10; // 1-indexed
+  const SUMMARY_COL = 11;
 
   items.forEach(item => {
-    const colIndex = sizeColMap[item.size];
-    if (!colIndex) return;
-
     for (let i = 1; i < allData.length; i++) {
       if (String(allData[i][0]) === String(item.productId)) {
-        const currentStock = parseInt(allData[i][colIndex - 1]) || 0; // 0-indexed for array
-        const newStock     = Math.max(0, currentStock - item.quantity);
-        sheet.getRange(i + 1, colIndex).setValue(newStock);
-        allData[i][colIndex - 1] = newStock; // update in-memory to handle duplicate items
+        let stock = {};
+        try { stock = JSON.parse(allData[i][9] || '{}'); } catch { stock = {}; }
+
+        const cur  = parseInt(stock[item.size]) || 0;
+        stock[item.size] = Math.max(0, cur - item.quantity);
+        allData[i][9]    = JSON.stringify(stock); // keep in-memory updated
+
+        const summary = Object.entries(stock)
+          .filter(([,qty]) => qty > 0)
+          .map(([s,q]) => `${s}:${q}`)
+          .join(', ') || 'Out of stock';
+
+        sheet.getRange(i + 1, STOCK_COL).setValue(JSON.stringify(stock));
+        sheet.getRange(i + 1, SUMMARY_COL).setValue(summary);
         return;
       }
     }

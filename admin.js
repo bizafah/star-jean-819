@@ -1,9 +1,62 @@
 /* ============================================================
-   admin.js  –  Admin panel logic  (v2)
+   admin.js  –  Admin panel logic  (v3 – jeans sizes)
    Password: 1234
    ============================================================ */
 
 const ADMIN_PASSWORD = '1234';
+
+// ── Size definitions (mirrors product.js) ───────────────────
+const ADMIN_CLOTHING_SIZES = [
+  { key: 'XS',  label: 'Extra Small (XS)' },
+  { key: 'S',   label: 'Small (S)' },
+  { key: 'M',   label: 'Medium (M)' },
+  { key: 'L',   label: 'Large (L)' },
+  { key: 'XL',  label: 'Extra Large (XL)' },
+  { key: 'XXL', label: 'Double Extra Large (XXL)' }
+];
+const ADMIN_JEANS_SIZES = [
+  '26','28','30','32','34','36','38','40','42','44'
+].map(s => ({ key: s, label: s }));
+
+function getAdminSizes(category) {
+  return category === 'jeans' ? ADMIN_JEANS_SIZES : ADMIN_CLOTHING_SIZES;
+}
+
+/**
+ * Render the stock input grid for the correct category.
+ * prefix = 'add' | 'edit'
+ * existingStock = optional object { key: qty } to pre-fill values
+ */
+function renderStockGrid(prefix, category, existingStock = {}) {
+  const gridId   = prefix + 'StockGrid';
+  const grid     = document.getElementById(gridId);
+  if (!grid) return;
+
+  const sizes = getAdminSizes(category);
+  if (!category || sizes.length === 0) {
+    grid.innerHTML = '<div class="stock-hint">Select a category above to see size options</div>';
+    return;
+  }
+
+  grid.innerHTML = sizes.map(s => `
+    <div class="stock-item">
+      <span>${s.label}</span>
+      <input type="number" id="${prefix}Stock_${s.key}"
+             min="0" value="${existingStock[s.key] ?? 0}" placeholder="0" />
+    </div>
+  `).join('');
+}
+
+/** Read stock values from the currently rendered grid */
+function readStockFromGrid(prefix, category) {
+  const sizes = getAdminSizes(category);
+  const stock = {};
+  sizes.forEach(s => {
+    const el = document.getElementById(`${prefix}Stock_${s.key}`);
+    stock[s.key] = el ? (parseInt(el.value) || 0) : 0;
+  });
+  return stock;
+}
 
 // ───────── AUTH ─────────
 function adminLogin(e) {
@@ -145,14 +198,7 @@ async function handleAddProduct(e) {
   if (!name || !category || price <= 0) { showToast('Please fill in all required fields'); return; }
   if (discountedAmount >= price)         { showToast('Discounted amount cannot be ≥ price'); return; }
 
-  const stock = {
-    XS: parseInt(document.getElementById('stock_XS').value) || 0,
-    S:  parseInt(document.getElementById('stock_S').value)  || 0,
-    M:  parseInt(document.getElementById('stock_M').value)  || 0,
-    L:  parseInt(document.getElementById('stock_L').value)  || 0,
-    XL: parseInt(document.getElementById('stock_XL').value) || 0
-  };
-
+  const stock = readStockFromGrid('add', category);
   const images  = imageSets['addImagePreview'].slice(0, 12);
   const product = { name, category, price, discountedAmount, colors, description: desc, topSelling: topSell, stock, images };
 
@@ -168,6 +214,7 @@ async function handleAddProduct(e) {
   document.getElementById('addProductForm').reset();
   imageSets['addImagePreview'] = [];
   renderImagePreviews('addImagePreview');
+  renderStockGrid('add', ''); // reset grid to placeholder
 }
 
 // ───────── UPDATE PRODUCT LIST ─────────
@@ -222,10 +269,9 @@ function openEditModal(productId) {
   document.getElementById('editDescription').value     = p.description || '';
   document.getElementById('editTopSelling').checked    = !!p.topSelling;
 
+  // Render the correct size stock grid FIRST, then fill values
   const stock = p.stock || {};
-  ['XS','S','M','L','XL'].forEach(s => {
-    document.getElementById(`editStock_${s}`).value = stock[s] ?? 0;
-  });
+  renderStockGrid('edit', p.category, stock);
 
   imageSets['editImagePreview'] = p.images ? [...p.images] : [];
   renderImagePreviews('editImagePreview');
@@ -257,14 +303,7 @@ async function handleUpdateProduct(e) {
     showToast('Discounted amount cannot be ≥ price'); return;
   }
 
-  const stock = {
-    XS: parseInt(document.getElementById('editStock_XS').value) || 0,
-    S:  parseInt(document.getElementById('editStock_S').value)  || 0,
-    M:  parseInt(document.getElementById('editStock_M').value)  || 0,
-    L:  parseInt(document.getElementById('editStock_L').value)  || 0,
-    XL: parseInt(document.getElementById('editStock_XL').value) || 0
-  };
-
+  const stock  = readStockFromGrid('edit', category);
   const images = imageSets['editImagePreview'].slice(0, 12);
   const btn    = document.querySelector('#editProductForm .btn-submit');
   btn.disabled = true;

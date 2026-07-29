@@ -64,9 +64,11 @@ let currentFilter = 'all';
 function renderCard(product, container) {
   const finalPrice = getFinalPrice(product);
   const hasDiscount = (product.discountedAmount > 0) || (product.discount > 0);
-  const discLabel = product.discountedAmount > 0
-    ? `- ${formatPrice(product.discountedAmount)}`
-    : (product.discount > 0 ? `${product.discount}% OFF` : '');
+  // Show as percentage on the website
+  const discPct = product.discountedAmount > 0
+    ? Math.round(product.discountedAmount / product.price * 100)
+    : (product.discount || 0);
+  const discLabel = discPct > 0 ? `${discPct}% OFF` : '';
   const imgSrc = product.images && product.images[0] ? product.images[0] : 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'300\' height=\'300\'%3E%3Crect fill=\'%23eee\' width=\'300\' height=\'300\'/%3E%3Ctext fill=\'%23aaa\' font-family=\'sans-serif\' font-size=\'18\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ENo Image%3C/text%3E%3C/svg%3E';
 
   const card = document.createElement('div');
@@ -150,11 +152,9 @@ function quickAddToCart(productId) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
 
-  // Check if product has stock
-  const sizes = ['XS', 'S', 'M', 'L', 'XL'];
-  const availableSize = sizes.find(s => product.stock && parseInt(product.stock[s]) > 0);
-
-  if (!availableSize) {
+  // Check if any size has stock (works for clothing XXL and jeans sizes)
+  const hasStock = product.stock && Object.values(product.stock).some(qty => parseInt(qty) > 0);
+  if (!hasStock) {
     showToast('Out of stock!');
     return;
   }

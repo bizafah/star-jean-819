@@ -90,7 +90,7 @@
             </div>
             <div class="form-group">
               <label>Category *</label>
-              <select id="addCategory" required>
+              <select id="addCategory" required onchange="renderStockGrid('add', this.value)">
                 <option value="">Select category</option>
                 <option value="tshirt">T-Shirt</option>
                 <option value="jeans">Jeans</option>
@@ -114,15 +114,12 @@
               <textarea id="addDescription" rows="4" placeholder="Describe the product..."></textarea>
             </div>
 
-            <!-- STOCK PER SIZE -->
+            <!-- STOCK PER SIZE – rendered dynamically by JS based on category -->
             <div class="form-group full">
               <label>Stock per Size *</label>
-              <div class="stock-grid">
-                <div class="stock-item"><span>Extra Small (XS)</span><input type="number" id="stock_XS" min="0" value="0" placeholder="0" /></div>
-                <div class="stock-item"><span>Small (S)</span><input type="number" id="stock_S" min="0" value="0" placeholder="0" /></div>
-                <div class="stock-item"><span>Medium (M)</span><input type="number" id="stock_M" min="0" value="0" placeholder="0" /></div>
-                <div class="stock-item"><span>Large (L)</span><input type="number" id="stock_L" min="0" value="0" placeholder="0" /></div>
-                <div class="stock-item"><span>Extra Large (XL)</span><input type="number" id="stock_XL" min="0" value="0" placeholder="0" /></div>
+              <div class="stock-grid" id="addStockGrid">
+                <!-- populated by renderStockGrid('add', category) -->
+                <div class="stock-hint">Select a category above to see size options</div>
               </div>
             </div>
 
@@ -170,7 +167,7 @@
                 <div class="form-group"><label>Name *</label><input type="text" id="editName" required /></div>
                 <div class="form-group">
                   <label>Category *</label>
-                  <select id="editCategory" required>
+                  <select id="editCategory" required onchange="renderStockGrid('edit', this.value)">
                     <option value="tshirt">T-Shirt</option>
                     <option value="jeans">Jeans</option>
                     <option value="hoddie">Hoodie</option>
@@ -182,12 +179,8 @@
                 <div class="form-group full"><label>Description</label><textarea id="editDescription" rows="3"></textarea></div>
                 <div class="form-group full">
                   <label>Stock per Size</label>
-                  <div class="stock-grid">
-                    <div class="stock-item"><span>XS</span><input type="number" id="editStock_XS" min="0" /></div>
-                    <div class="stock-item"><span>S</span><input type="number" id="editStock_S" min="0" /></div>
-                    <div class="stock-item"><span>M</span><input type="number" id="editStock_M" min="0" /></div>
-                    <div class="stock-item"><span>L</span><input type="number" id="editStock_L" min="0" /></div>
-                    <div class="stock-item"><span>XL</span><input type="number" id="editStock_XL" min="0" /></div>
+                  <div class="stock-grid" id="editStockGrid">
+                    <!-- populated by renderStockGrid('edit', category) -->
                   </div>
                 </div>
                 <div class="form-group full">

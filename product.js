@@ -2,13 +2,33 @@
    product.js  –  Product detail page logic
    ============================================================ */
 
-const SIZES = [
-  { key: 'XS', label: 'Extra Small' },
-  { key: 'S',  label: 'Small' },
-  { key: 'M',  label: 'Medium' },
-  { key: 'L',  label: 'Large' },
-  { key: 'XL', label: 'Extra Large' }
+// Sizes for T-Shirts and Hoodies
+const CLOTHING_SIZES = [
+  { key: 'XS',  label: 'Extra Small' },
+  { key: 'S',   label: 'Small' },
+  { key: 'M',   label: 'Medium' },
+  { key: 'L',   label: 'Large' },
+  { key: 'XL',  label: 'Extra Large' },
+  { key: 'XXL', label: 'Double Extra Large' }
 ];
+
+// Sizes for Jeans (waist sizes)
+const JEANS_SIZES = [
+  { key: '26', label: '26' },
+  { key: '28', label: '28' },
+  { key: '30', label: '30' },
+  { key: '32', label: '32' },
+  { key: '34', label: '34' },
+  { key: '36', label: '36' },
+  { key: '38', label: '38' },
+  { key: '40', label: '40' },
+  { key: '42', label: '42' },
+  { key: '44', label: '44' }
+];
+
+function getSizesForCategory(category) {
+  return category === 'jeans' ? JEANS_SIZES : CLOTHING_SIZES;
+}
 
 let selectedSize = null;
 let selectedColor = null;
@@ -51,9 +71,11 @@ function renderProduct(p) {
 
   const finalPrice = getFinalPrice(p);
   const hasDiscount = (p.discountedAmount > 0) || (p.discount > 0);
-  const discLabel = p.discountedAmount > 0
-    ? `- ${formatPrice(p.discountedAmount)}`
-    : (p.discount > 0 ? `${p.discount}% OFF` : '');
+  // Always show as percentage on the website
+  const discPct = p.discountedAmount > 0
+    ? Math.round(p.discountedAmount / p.price * 100)
+    : (p.discount || 0);
+  const discLabel = discPct > 0 ? `${discPct}% OFF` : '';
   const images = p.images && p.images.length > 0 ? p.images : [''];
   const colors = p.colors ? p.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
 
@@ -103,7 +125,7 @@ function renderProduct(p) {
         <div>
           <div class="pd-label">Size: <span id="selectedSizeLabel" style="font-weight:400;color:#666;">Select a size</span></div>
           <div class="size-options" id="sizeOptions">
-            ${SIZES.map(s => {
+            ${getSizesForCategory(p.category).map(s => {
               const stock = p.stock && p.stock[s.key] !== undefined ? parseInt(p.stock[s.key]) : 0;
               return `<button class="size-btn ${stock === 0 ? 'out-of-stock' : ''}"
                 data-size="${s.key}" data-stock="${stock}"
@@ -245,19 +267,22 @@ function renderRelated(product) {
   related.forEach(p => {
     const finalPrice = getFinalPrice(p);
     const imgSrc = p.images && p.images[0] ? p.images[0] : '';
+    const relDiscPct = p.discountedAmount > 0
+      ? Math.round(p.discountedAmount / p.price * 100)
+      : (p.discount || 0);
     const card = document.createElement('div');
     card.className = 'product-card';
     card.innerHTML = `
       <div class="product-img-wrap">
         <img src="${imgSrc}" alt="${p.name}" loading="lazy" />
-        ${p.discount > 0 ? `<span class="product-badge">${p.discount}% OFF</span>` : ''}
+        ${relDiscPct > 0 ? `<span class="product-badge">${relDiscPct}% OFF</span>` : ''}
       </div>
       <div class="product-info">
         <div class="product-category">${catLabel(p.category)}</div>
         <div class="product-name">${p.name}</div>
         <div class="product-price">
           <span class="price-current">${formatPrice(finalPrice)}</span>
-          ${p.discount > 0 ? `<span class="price-original">${formatPrice(p.price)}</span>` : ''}
+          ${relDiscPct > 0 ? `<span class="price-original">${formatPrice(p.price)}</span>` : ''}
         </div>
         <button class="btn-add-cart" onclick="event.stopPropagation()">View Product</button>
       </div>
