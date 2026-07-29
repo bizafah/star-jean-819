@@ -195,11 +195,19 @@ function addToCart(productId, size, color, quantity = 1) {
 
   // stock may arrive as a JSON string from Sheets in rare cases — parse it
   const stock = typeof product.stock === 'string'
-    ? JSON.parse(product.stock)
+    ? (() => { try { return JSON.parse(product.stock); } catch { return {}; } })()
     : (product.stock || {});
 
-  const available = stock[size] !== undefined ? parseInt(stock[size]) : 0;
-  if (available < quantity) return { success: false, message: 'Insufficient stock' };
+  // If the size key exists and is explicitly 0 → out of stock.
+  // If the key is missing entirely → stock unknown, allow the purchase.
+  const stockValue = stock[size];
+  const available  = stockValue !== undefined && stockValue !== ''
+    ? parseInt(stockValue)
+    : null; // null = unknown
+
+  if (available !== null && available < quantity) {
+    return { success: false, message: 'Insufficient stock' };
+  }
 
   const cart     = getCart();
   const existing = cart.find(i => i.productId === productId && i.size === size && i.color === color);

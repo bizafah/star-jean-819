@@ -129,12 +129,18 @@ function renderProduct(p) {
           <div class="pd-label">Size: <span id="selectedSizeLabel" style="font-weight:400;color:#666;">Select a size</span></div>
           <div class="size-options" id="sizeOptions">
             ${getSizesForCategory(p.category).map(s => {
-              const stock = p.stock && p.stock[s.key] !== undefined ? parseInt(p.stock[s.key]) : 0;
-              return `<button class="size-btn ${stock === 0 ? 'out-of-stock' : ''}"
-                data-size="${s.key}" data-stock="${stock}"
-                onclick="selectSize('${s.key}', '${s.label}', ${stock}, this)"
-                ${stock === 0 ? 'disabled' : ''}
-                title="${s.label} – ${stock > 0 ? stock + ' in stock' : 'Out of stock'}"
+              // Normalise stock — handle missing, NaN, or string values safely
+              const rawStock = p.stock && p.stock[s.key] !== undefined && p.stock[s.key] !== ''
+                ? parseInt(p.stock[s.key])
+                : null;                        // null = unknown (don't disable)
+              const stockQty   = (rawStock === null || isNaN(rawStock)) ? null : rawStock;
+              const isDisabled = stockQty !== null && stockQty === 0;
+              const stockAttr  = stockQty !== null ? stockQty : 999; // 999 = unknown, allow selection
+              return `<button class="size-btn ${isDisabled ? 'out-of-stock' : ''}"
+                data-size="${s.key}" data-stock="${stockAttr}"
+                onclick="selectSize('${s.key}', '${s.label}', ${stockAttr}, this)"
+                ${isDisabled ? 'disabled' : ''}
+                title="${s.label}${stockQty !== null ? (stockQty > 0 ? ' – ' + stockQty + ' in stock' : ' – Out of stock') : ''}"
               >${s.key}</button>`;
             }).join('')}
           </div>
@@ -208,26 +214,36 @@ function selectColor(color, el) {
 
 // ───────── SIZE SELECTION ─────────
 function selectSize(key, label, stock, el) {
+  // stock === 0 means confirmed out of stock — block it
+  // stock > 0 or stock === 999 (unknown) — allow selection
   if (stock === 0) return;
   selectedSize = key;
-  selectedQty = 1;
+  selectedQty  = 1;
   document.getElementById('qtyDisplay').textContent = 1;
   document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   const sizeLabel = document.getElementById('selectedSizeLabel');
   if (sizeLabel) sizeLabel.textContent = label;
-  const note = document.getElementById('stockNote');
-  if (note) note.textContent = stock <= 5 ? `Only ${stock} left!` : `${stock} in stock`;
+  const note    = document.getElementById('stockNote');
   const qtyNote = document.getElementById('qtyNote');
-  if (qtyNote) qtyNote.textContent = `Max: ${stock}`;
+  if (stock === 999) {
+    // Stock unknown — don't show misleading info
+    if (note)    note.textContent    = '';
+    if (qtyNote) qtyNote.textContent = '';
+  } else {
+    if (note)    note.textContent    = stock <= 5 ? `Only ${stock} left!` : `${stock} in stock`;
+    if (qtyNote) qtyNote.textContent = `Max: ${stock}`;
+  }
 }
 
 // ───────── QUANTITY ─────────
 function changeQty(delta) {
   if (!selectedSize) { showToast('Please select a size first'); return; }
-  const btn = document.querySelector(`.size-btn[data-size="${selectedSize}"]`);
-  const maxStock = btn ? parseInt(btn.dataset.stock) : 1;
-  selectedQty = Math.max(1, Math.min(selectedQty + delta, maxStock));
+  const btn      = document.querySelector(`.size-btn[data-size="${selectedSize}"]`);
+  const rawStock = btn ? parseInt(btn.dataset.stock) : 999;
+  // 999 is our sentinel for "unknown stock" — cap at a reasonable max
+  const maxStock = (rawStock === 999 || isNaN(rawStock)) ? 99 : rawStock;
+  selectedQty    = Math.max(1, Math.min(selectedQty + delta, maxStock));
   document.getElementById('qtyDisplay').textContent = selectedQty;
 }
 

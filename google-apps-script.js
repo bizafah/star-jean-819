@@ -96,8 +96,23 @@ function getAllProducts() {
     try { images = JSON.parse(r[14] || '[]'); } catch { images = []; }
 
     // Col 9 = Stock JSON  e.g. {"XS":5,"S":3} or {"26":10,"28":8}
+    // Also handles legacy rows where col 9 was plain text like "Stock XS"
+    // by falling back to cols 9-13 as individual XS/S/M/L/XL values.
     let stock = {};
-    try { stock = JSON.parse(r[9] || '{}'); } catch { stock = {}; }
+    const col9 = String(r[9] || '').trim();
+    if (col9.startsWith('{')) {
+      // New format: JSON string
+      try { stock = JSON.parse(col9); } catch { stock = {}; }
+    } else if (col9 !== '' && !isNaN(Number(col9))) {
+      // Legacy format: separate numeric columns for XS S M L XL
+      stock = {
+        XS: Number(r[9])  || 0,
+        S:  Number(r[10]) || 0,
+        M:  Number(r[11]) || 0,
+        L:  Number(r[12]) || 0,
+        XL: Number(r[13]) || 0
+      };
+    }
 
     products.push({
       id:               String(r[0]),
