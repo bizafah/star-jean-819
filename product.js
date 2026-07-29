@@ -54,8 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   renderFromId();
 
+  // Re-render on fresh Sheets data ONLY if the product hasn't been rendered yet.
+  // Never re-render once the user is interacting (size/color selected) — that
+  // would silently reset their selection and break Add to Cart / Buy Now.
   DataEvents.on('productsLoaded', () => {
-    if (currentProduct) renderFromId();
+    if (!currentProduct) renderFromId();
   });
 
   if (params.get('action') === 'addcart') {
@@ -231,7 +234,10 @@ function changeQty(delta) {
 // ───────── ADD TO CART ─────────
 function handleAddToCart() {
   if (!selectedSize) { showToast('Please select a size'); return; }
-  if (!selectedColor && currentProduct.colors) { showToast('Please select a color'); return; }
+  const colors = currentProduct.colors
+    ? currentProduct.colors.split(',').map(c => c.trim()).filter(Boolean)
+    : [];
+  if (colors.length > 0 && !selectedColor) { showToast('Please select a color'); return; }
   const result = addToCart(currentProduct.id, selectedSize, selectedColor || 'Default', selectedQty);
   if (result.success) {
     showToast('Added to cart!');
@@ -243,7 +249,10 @@ function handleAddToCart() {
 
 function handleBuyNow() {
   if (!selectedSize) { showToast('Please select a size'); return; }
-  if (!selectedColor && currentProduct.colors) { showToast('Please select a color'); return; }
+  const colors = currentProduct.colors
+    ? currentProduct.colors.split(',').map(c => c.trim()).filter(Boolean)
+    : [];
+  if (colors.length > 0 && !selectedColor) { showToast('Please select a color'); return; }
   const result = addToCart(currentProduct.id, selectedSize, selectedColor || 'Default', selectedQty);
   if (result.success) {
     window.location.href = 'cart.html';

@@ -159,7 +159,12 @@ async function deductStock(items) {
   const products = getProducts();
   items.forEach(item => {
     const p = products.find(pr => pr.id === item.productId);
-    if (!p || !p.stock) return;
+    if (!p) return;
+    // stock may be a JSON string in rare cases
+    if (typeof p.stock === 'string') {
+      try { p.stock = JSON.parse(p.stock); } catch { p.stock = {}; }
+    }
+    if (!p.stock) p.stock = {};
     const cur = parseInt(p.stock[item.size]) || 0;
     p.stock[item.size] = Math.max(0, cur - item.quantity);
   });
@@ -188,8 +193,12 @@ function addToCart(productId, size, color, quantity = 1) {
   const product   = products.find(p => p.id === productId);
   if (!product) return { success: false, message: 'Product not found' };
 
-  const available = product.stock && product.stock[size] !== undefined
-    ? parseInt(product.stock[size]) : 0;
+  // stock may arrive as a JSON string from Sheets in rare cases — parse it
+  const stock = typeof product.stock === 'string'
+    ? JSON.parse(product.stock)
+    : (product.stock || {});
+
+  const available = stock[size] !== undefined ? parseInt(stock[size]) : 0;
   if (available < quantity) return { success: false, message: 'Insufficient stock' };
 
   const cart     = getCart();
