@@ -142,30 +142,66 @@ function toggleSidebar() {
 
 // ───────── IMAGE HANDLING ─────────
 const imageSets = { addImagePreview: [], editImagePreview: [] };
+// Each entry in imageSets is { src: <url or base64 for preview>, url: <imgbb url or null> }
+
+// ── Your ImgBB API key ──────────────────────────────────────
+// Get a FREE key in 30 seconds:
+//   1. Go to https://imgbb.com  →  click Sign Up (or log in)
+//   2. Go to https://api.imgbb.com  →  click "Get API key"
+//   3. Copy the key and paste it below replacing the placeholder
+const IMGBB_API_KEY = 'c64bdf9b051e440356c814b990048bd6';
 
 /**
- * Compress an image file to max 800px wide/tall at 72% quality.
- * Returns a base64 data URL. Reduces file size by ~85–95%.
+ * Compress image to max 1200px / 80% quality, then upload to ImgBB.
+ * Returns the permanent CDN URL (https://i.ibb.co/...).
+ * Falls back to a compressed base64 if upload fails (no internet etc.)
  */
-function compressImage(file) {
+async function uploadImage(file) {
+  // Step 1 – compress in browser first (reduces upload size ~80%)
+  const base64 = await _compressToBase64(file, 1200, 0.80);
+
+  // Step 2 – upload to ImgBB if key is configured
+  if (IMGBB_API_KEY && IMGBB_API_KEY !== 'YOUR_IMGBB_API_KEY_HERE') {
+    try {
+      const formData = new FormData();
+      // ImgBB accepts base64 without the data:image/...;base64, prefix
+      formData.append('image', base64.split(',')[1]);
+      formData.append('key',   IMGBB_API_KEY);
+
+      const res  = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body:   formData
+      });
+      const json = await res.json();
+      if (json.success) {
+        return json.data.url;   // permanent CDN URL – visible to everyone
+      }
+    } catch (err) {
+      console.warn('ImgBB upload failed, using compressed base64 fallback:', err);
+    }
+  }
+
+  // Fallback: return compressed base64 (only visible on this device)
+  return base64;
+}
+
+/** Resize + compress an image File → base64 string */
+function _compressToBase64(file, maxSize, quality) {
   return new Promise((resolve) => {
-    const MAX_SIZE = 800;
-    const QUALITY  = 0.72;
-    const reader   = new FileReader();
-    reader.onload  = (ev) => {
+    const reader  = new FileReader();
+    reader.onload = (ev) => {
       const img    = new Image();
       img.onload   = () => {
         let { width, height } = img;
-        // Scale down if too large
-        if (width > MAX_SIZE || height > MAX_SIZE) {
-          if (width > height) { height = Math.round(height * MAX_SIZE / width);  width = MAX_SIZE; }
-          else                { width  = Math.round(width  * MAX_SIZE / height); height = MAX_SIZE; }
+        if (width > maxSize || height > maxSize) {
+          if (width > height) { height = Math.round(height * maxSize / width);  width = maxSize; }
+          else                { width  = Math.round(width  * maxSize / height); height = maxSize; }
         }
-        const canvas    = document.createElement('canvas');
-        canvas.width    = width;
-        canvas.height   = height;
+        const canvas = document.createElement('canvas');
+        canvas.width  = width;
+        canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', QUALITY));
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.src = ev.target.result;
     };
@@ -182,17 +218,20 @@ async function previewImages(input, previewId, append = false) {
   const toProcess = files.slice(0, remaining);
   if (files.length > remaining) showToast(`Max ${maxImages} images. ${files.length - remaining} skipped.`);
 
-  // Show a small per-image progress indicator
-  const area = document.getElementById(previewId.replace('Preview', 'Area')) || null;
-  if (area) area.innerHTML = `<i class="fas fa-spinner fa-spin"></i><p>Compressing images...</p>`;
+  if (toProcess.length === 0) return;
 
-  // Compress all selected images in parallel
-  const compressed = await Promise.all(toProcess.map(f => compressImage(f)));
-  compressed.forEach(src => imageSets[previewId].push(src));
+  // Show uploading state
+  const uploadBtn = document.getElementById(previewId.replace('Preview', 'Area'));
+  if (uploadBtn) uploadBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><p>Uploading ${toProcess.length} image${toProcess.length > 1 ? 's' : ''}...</p><span>Please wait</span>`;
+
+  // Upload all images in parallel to ImgBB
+  const urls = await Promise.all(toProcess.map(f => uploadImage(f)));
+
+  urls.forEach(url => imageSets[previewId].push(url));
   renderImagePreviews(previewId);
 
   // Restore upload area
-  if (area) area.innerHTML = `<i class="fas fa-cloud-upload-alt"></i><p>Click to upload images</p><span>JPG, PNG, WEBP – up to 12 images</span>`;
+  if (uploadBtn) uploadBtn.innerHTML = `<i class="fas fa-cloud-upload-alt"></i><p>Click to upload more images</p><span>JPG, PNG, WEBP – up to 12 images</span>`;
 
   input.value = '';
 }
@@ -201,11 +240,13 @@ function renderImagePreviews(previewId) {
   const container = document.getElementById(previewId);
   if (!container) return;
   container.innerHTML = '';
-  imageSets[previewId].forEach((src, i) => {
+  imageSets[previewId].forEach((url, i) => {
+    const isImgBB = url && url.startsWith('http');
     const div = document.createElement('div');
     div.className = 'preview-thumb';
     div.innerHTML = `
-      <img src="${src}" alt="Preview ${i + 1}" />
+      <img src="${url}" alt="Preview ${i + 1}" />
+      ${isImgBB ? '<div class="img-hosted-badge" title="Hosted on ImgBB – visible on all devices"><i class="fas fa-check-circle"></i></div>' : '<div class="img-local-badge" title="Local only – upload may have failed"><i class="fas fa-exclamation-circle"></i></div>'}
       <div class="remove-img" onclick="removePreviewImage('${previewId}', ${i})">
         <i class="fas fa-times"></i>
       </div>`;

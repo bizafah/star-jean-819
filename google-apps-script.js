@@ -22,7 +22,8 @@ const PRODUCT_HEADERS = [
   'ID', 'Name', 'Category', 'Price (Rs)', 'Discounted Amount (Rs)', 'Final Price (Rs)',
   'Colors', 'Description', 'Top Selling',
   'Stock (JSON)', 'Stock Summary',
-  'Images Count', 'Created At', 'Updated At'
+  'Images Count', 'Images (URLs)',
+  'Created At', 'Updated At'
 ];
 
 const ORDER_HEADERS = [
@@ -106,6 +107,12 @@ function getAllProducts() {
       };
     }
 
+    // Col 12 = Images URLs JSON array, col 13 = createdAt, col 14 = updatedAt
+    let images = [];
+    try { images = JSON.parse(String(r[12] || '[]')); } catch { images = []; }
+    // Handle old rows that had no images column (empty string or missing)
+    if (!Array.isArray(images)) images = [];
+
     products.push({
       id:               String(r[0]),
       name:             String(r[1]),
@@ -117,10 +124,10 @@ function getAllProducts() {
       description:      String(r[7] || ''),
       topSelling:       r[8] === 'Yes' || r[8] === true,
       stock,
-      images:           [],   // images live in browser localStorage, not in Sheets
-      imagesCount:      Number(r[11]) || 0,
-      createdAt:        String(r[12] || ''),
-      updatedAt:        String(r[13] || '')
+      images,                          // CDN URLs – visible on all devices
+      imagesCount:      images.length,
+      createdAt:        String(r[13] || ''),
+      updatedAt:        String(r[14] || '')
     });
   }
   return products;
@@ -178,7 +185,11 @@ function saveProduct(p) {
     .map(([size, qty]) => `${size}:${qty}`)
     .join(', ') || 'Out of stock';
 
-  // 14 columns — no images column (images stay in browser localStorage)
+  const imagesURLs = JSON.stringify(p.images || []);
+
+  // 15 columns: ID → Name → Category → Price → DiscountAmt → FinalPrice →
+  //             Colors → Description → TopSelling → Stock(JSON) → StockSummary →
+  //             ImagesCount → Images(URLs) → CreatedAt → UpdatedAt
   const row = [
     p.id,
     p.name,
@@ -191,7 +202,8 @@ function saveProduct(p) {
     p.topSelling  ? 'Yes' : 'No',
     stockJSON,
     stockSummary,
-    p.imagesCount || 0,
+    (p.images || []).length,
+    imagesURLs,
     p.createdAt  || new Date().toISOString(),
     p.updatedAt  || ''
   ];

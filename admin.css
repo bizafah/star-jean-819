@@ -82,6 +82,8 @@ input, select, textarea { font-family: inherit; }
 .preview-thumb { position: relative; width: 80px; height: 80px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
 .preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .preview-thumb .remove-img { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 50%; width: 20px; height: 20px; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.img-hosted-badge { position: absolute; bottom: 3px; left: 3px; background: rgba(42,157,143,0.9); color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; }
+.img-local-badge  { position: absolute; bottom: 3px; left: 3px; background: rgba(230,57,70,0.9);  color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; }
 
 /* ===== STOCK GRID ===== */
 .stock-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
