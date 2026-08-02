@@ -90,15 +90,24 @@ function togglePwd() {
 }
 
 // ───────── INIT ─────────
-async function initAdmin() {
-  showLoadingOverlay(true);
-  // Fetch fresh data from Sheets so admin always sees live data
-  await fetchProducts();
-  await fetchOrders();
-  showLoadingOverlay(false);
+function initAdmin() {
+  // Step 1 – render immediately from localStorage cache (zero wait)
   renderUpdateList();
   renderOrders();
   updatePendingBadge();
+
+  // Step 2 – refresh from Sheets in the background (parallel, no loading screen)
+  // Both fetches run at the same time. When each one finishes it silently
+  // updates the UI. No overlay, no blocking.
+  if (_sheetReady()) {
+    Promise.all([fetchProducts(), fetchOrders()])
+      .then(() => {
+        renderUpdateList();
+        renderOrders();
+        updatePendingBadge();
+      })
+      .catch(e => console.warn('Background refresh failed:', e));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -109,17 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Loading overlay while fetching
+// Loading overlay – kept for compatibility but no longer used on init
 function showLoadingOverlay(show) {
-  let el = document.getElementById('adminLoadingOverlay');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'adminLoadingOverlay';
-    el.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:9000;display:flex;align-items:center;justify-content:center;gap:12px;font-size:1rem;color:#1a1a2e;font-weight:600;';
-    el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:1.5rem;"></i> Loading latest data...';
-    document.body.appendChild(el);
-  }
-  el.style.display = show ? 'flex' : 'none';
+  const el = document.getElementById('adminLoadingOverlay');
+  if (el) el.style.display = show ? 'flex' : 'none';
 }
 
 // ───────── TABS ─────────
@@ -132,7 +134,8 @@ function switchTab(tabId, btn) {
 
   if (tabId === 'updateProduct') renderUpdateList();
   if (tabId === 'viewOrders') {
-    fetchOrders().then(() => renderOrders());
+    renderOrders(); // show cached data instantly
+    fetchOrders().then(() => renderOrders()); // refresh in background
   }
 }
 
