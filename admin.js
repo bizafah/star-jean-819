@@ -260,7 +260,7 @@ function removePreviewImage(previewId, index) {
 }
 
 // ───────── ADD PRODUCT ─────────
-async function handleAddProduct(e) {
+function handleAddProduct(e) {
   e.preventDefault();
   const name             = document.getElementById('addName').value.trim();
   const category         = document.getElementById('addCategory').value;
@@ -273,23 +273,18 @@ async function handleAddProduct(e) {
   if (!name || !category || price <= 0) { showToast('Please fill in all required fields'); return; }
   if (discountedAmount >= price)         { showToast('Discounted amount cannot be ≥ price'); return; }
 
-  const stock = readStockFromGrid('add', category);
+  const stock   = readStockFromGrid('add', category);
   const images  = imageSets['addImagePreview'].slice(0, 12);
   const product = { name, category, price, discountedAmount, colors, description: desc, topSelling: topSell, stock, images };
 
-  const btn = e.submitter || document.querySelector('#addProductForm .btn-submit');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  // Save immediately – Sheets syncs in the background
+  addProduct(product);
 
-  await addProduct(product);
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-plus"></i> Add Product';
   showToast('Product added successfully!');
   document.getElementById('addProductForm').reset();
   imageSets['addImagePreview'] = [];
   renderImagePreviews('addImagePreview');
-  renderStockGrid('add', ''); // reset grid to placeholder
+  renderStockGrid('add', '');
 }
 
 // ───────── UPDATE PRODUCT LIST ─────────
@@ -363,7 +358,7 @@ function closeEditModal(e) {
 }
 
 // ───────── SAVE EDITED PRODUCT ─────────
-async function handleUpdateProduct(e) {
+function handleUpdateProduct(e) {
   e.preventDefault();
   const id               = document.getElementById('editProductId').value;
   const name             = document.getElementById('editName').value.trim();
@@ -380,14 +375,9 @@ async function handleUpdateProduct(e) {
 
   const stock  = readStockFromGrid('edit', category);
   const images = imageSets['editImagePreview'].slice(0, 12);
-  const btn    = document.querySelector('#editProductForm .btn-submit');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-  await updateProduct(id, { name, category, price, discountedAmount, colors, description: desc, topSelling: topSell, stock, images });
-
-  btn.disabled  = false;
-  btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+  // Save immediately – Sheets syncs in the background
+  updateProduct(id, { name, category, price, discountedAmount, colors, description: desc, topSelling: topSell, stock, images });
 
   showToast('Product updated!');
   document.getElementById('editModalOverlay').style.display = 'none';
@@ -397,12 +387,12 @@ async function handleUpdateProduct(e) {
 }
 
 // ───────── DELETE PRODUCT ─────────
-async function confirmDeleteProduct() {
+function confirmDeleteProduct() {
   const id = document.getElementById('editProductId').value;
   if (!id) return;
   if (!confirm('Delete this product? This cannot be undone.')) return;
 
-  await deleteProduct(id);
+  deleteProduct(id);
   document.getElementById('editModalOverlay').style.display = 'none';
   document.body.style.overflow = '';
   renderUpdateList();
@@ -474,10 +464,10 @@ function renderOrders() {
   updatePendingBadge();
 }
 
-async function changeOrderStatus(orderId, select) {
-  const newStatus      = select.value;
-  select.className     = 'status-select status-' + newStatus;
-  await updateOrderStatus(orderId, newStatus);
+function changeOrderStatus(orderId, select) {
+  const newStatus  = select.value;
+  select.className = 'status-select status-' + newStatus;
+  updateOrderStatus(orderId, newStatus); // background sync
   updatePendingBadge();
   showToast(`Order marked as ${newStatus}`);
 }

@@ -56,36 +56,32 @@ function getTopSelling() {
 }
 
 /** Add product: save to cache + POST full product (with image URLs) to Sheets */
-async function addProduct(product) {
+function addProduct(product) {
   product.id        = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   product.createdAt = new Date().toISOString();
-
-  // Save to local cache
   const products = getProducts();
   products.push(product);
   _saveProductsCache(products);
-
-  // POST to Sheets — images are now just URLs (tiny text), safe to send
-  await _post({ type: 'product', data: product });
+  _post({ type: 'product', data: product }); // background sync
   return product;
 }
 
 /** Update product: update cache + POST full product (with image URLs) to Sheets */
-async function updateProduct(id, updates) {
+function updateProduct(id, updates) {
   const products = getProducts();
   const idx = products.findIndex(p => p.id === id);
   if (idx === -1) return null;
   products[idx] = { ...products[idx], ...updates, updatedAt: new Date().toISOString() };
   _saveProductsCache(products);
-  await _post({ type: 'product', data: products[idx] });
+  _post({ type: 'product', data: products[idx] }); // background sync
   return products[idx];
 }
 
-/** Delete product: POST to Sheets, remove from cache */
-async function deleteProduct(id) {
+/** Delete product: remove from cache + background sync to Sheets */
+function deleteProduct(id) {
   const products = getProducts().filter(p => p.id !== id);
   _saveProductsCache(products);
-  await _post({ type: 'deleteProduct', data: { id } });
+  _post({ type: 'deleteProduct', data: { id } }); // background sync
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -116,54 +112,49 @@ async function fetchOrders() {
   return getOrders();
 }
 
-/** Place order: POST to Sheets + deduct stock, update cache */
+/** Place order: save to cache, deduct stock, background sync to Sheets */
 async function addOrder(order) {
   order.id        = 'ORD-' + Date.now();
   order.createdAt = new Date().toISOString();
   order.status    = 'Pending';
 
-  // Optimistic local cache
   const orders = getOrders();
   orders.push(order);
   _saveOrdersCache(orders);
 
-  // 1. Save order row in Sheets
-  await _post({ type: 'order', data: order });
+  // Deduct stock from local cache immediately
+  deductStock(order.items);
 
-  // 2. Deduct stock in Sheets + local cache
-  await deductStock(order.items);
+  // Both Sheets calls go in the background — cart page doesn't need to wait
+  _post({ type: 'order', data: order });
+  _post({ type: 'updateStock', data: { items: order.items } });
 
   return order;
 }
 
-/** Update order status: POST to Sheets + update cache */
-async function updateOrderStatus(id, status) {
+/** Update order status: update cache + background sync to Sheets */
+function updateOrderStatus(id, status) {
   const orders = getOrders();
   const idx    = orders.findIndex(o => o.id === id);
   if (idx !== -1) {
     orders[idx].status = status;
     _saveOrdersCache(orders);
   }
-  await _post({ type: 'updateOrderStatus', data: { id, status } });
+  _post({ type: 'updateOrderStatus', data: { id, status } }); // background sync
 }
 
 // ═══════════════════════════════════════════════════════════
 //  STOCK DEDUCTION
 // ═══════════════════════════════════════════════════════════
 
-/**
- * items = [{ productId, size, quantity }, ...]
- * Reduces stock locally AND in Sheets.
- */
-async function deductStock(items) {
+/** Deduct stock from local cache immediately + background sync to Sheets */
+function deductStock(items) {
   if (!items || items.length === 0) return;
 
-  // Update local cache
   const products = getProducts();
   items.forEach(item => {
     const p = products.find(pr => pr.id === item.productId);
     if (!p) return;
-    // stock may be a JSON string in rare cases
     if (typeof p.stock === 'string') {
       try { p.stock = JSON.parse(p.stock); } catch { p.stock = {}; }
     }
@@ -173,8 +164,7 @@ async function deductStock(items) {
   });
   _saveProductsCache(products);
 
-  // Push to Sheets
-  await _post({ type: 'updateStock', data: { items } });
+  _post({ type: 'updateStock', data: { items } }); // background sync
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -292,17 +282,18 @@ function _sheetReady() {
   return SHEET_URL && SHEET_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
 }
 
-// ── Generic POST to Apps Script ──────────────────────────────
-async function _post(payload) {
+// ── Generic POST to Apps Script – fire and forget ────────────
+// We never need to wait for the Sheets response. Data is already
+// saved to localStorage instantly. Sheets syncs in the background.
+function _post(payload) {
   if (!_sheetReady()) return;
-  try {
-    await fetch(SHEET_URL, {
-      method:  'POST',
-      mode:    'no-cors',       // Apps Script doesn't send CORS headers on POST
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload)
-    });
-  } catch (e) { console.warn('Sheet POST failed:', e); }
+  fetch(SHEET_URL, {
+    method:  'POST',
+    mode:    'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload)
+  }).catch(e => console.warn('Sheet sync failed (non-blocking):', e));
+  // intentionally no return / no await — caller does NOT need to wait
 }
 
 // ── Boot: fetch fresh data on every page load ────────────────

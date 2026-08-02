@@ -110,7 +110,7 @@ function removeItem(productId, size, color) {
 }
 
 // ───────── SUBMIT ORDER ─────────
-async function submitOrder(e) {
+function submitOrder(e) {
   e.preventDefault();
   const cart = getCart();
   if (cart.length === 0) { showToast('Your cart is empty'); return; }
@@ -121,10 +121,6 @@ async function submitOrder(e) {
   const notes   = document.getElementById('custNotes').value.trim();
 
   if (!name || !phone || !address) { showToast('Please fill all required fields'); return; }
-
-  const btn = document.getElementById('confirmBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Placing order...';
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const total    = subtotal + DELIVERY_CHARGE;
@@ -146,18 +142,10 @@ async function submitOrder(e) {
     paymentMethod: 'Cash on Delivery'
   };
 
-  // Place order (addOrder now auto-deducts stock in Sheets + local cache)
-  try {
-    const savedOrder = await addOrder(order);
-    clearCart();
-    showSuccessModal(savedOrder);
-  } catch (err) {
-    console.error('Order failed:', err);
-    showToast('Something went wrong. Please try again.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm Order';
-  }
+  // addOrder saves immediately to localStorage + syncs to Sheets in background
+  const savedOrder = addOrder(order);
+  clearCart();
+  showSuccessModal(savedOrder);
 }
 
 // ───────── SUCCESS MODAL ─────────
