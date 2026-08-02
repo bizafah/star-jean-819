@@ -22,7 +22,7 @@ const PRODUCT_HEADERS = [
   'ID', 'Name', 'Category', 'Price (Rs)', 'Discounted Amount (Rs)', 'Final Price (Rs)',
   'Colors', 'Description', 'Top Selling',
   'Stock (JSON)', 'Stock Summary',
-  'Images Count', 'Created At', 'Updated At', 'Images (JSON)'
+  'Images Count', 'Created At', 'Updated At'
 ];
 
 const ORDER_HEADERS = [
@@ -91,20 +91,12 @@ function getAllProducts() {
     const r = rows[i];
     if (!r[0]) continue;
 
-    // Col 14 = Images JSON
-    let images = [];
-    try { images = JSON.parse(r[14] || '[]'); } catch { images = []; }
-
-    // Col 9 = Stock JSON  e.g. {"XS":5,"S":3} or {"26":10,"28":8}
-    // Also handles legacy rows where col 9 was plain text like "Stock XS"
-    // by falling back to cols 9-13 as individual XS/S/M/L/XL values.
+    // Col 9 = Stock JSON, no images column anymore
     let stock = {};
     const col9 = String(r[9] || '').trim();
     if (col9.startsWith('{')) {
-      // New format: JSON string
       try { stock = JSON.parse(col9); } catch { stock = {}; }
     } else if (col9 !== '' && !isNaN(Number(col9))) {
-      // Legacy format: separate numeric columns for XS S M L XL
       stock = {
         XS: Number(r[9])  || 0,
         S:  Number(r[10]) || 0,
@@ -125,7 +117,8 @@ function getAllProducts() {
       description:      String(r[7] || ''),
       topSelling:       r[8] === 'Yes' || r[8] === true,
       stock,
-      images,
+      images:           [],   // images live in browser localStorage, not in Sheets
+      imagesCount:      Number(r[11]) || 0,
       createdAt:        String(r[12] || ''),
       updatedAt:        String(r[13] || '')
     });
@@ -179,15 +172,13 @@ function saveProduct(p) {
   const finalPrice      = discountedAmt > 0 ? Math.round(price - discountedAmt) : price;
   const stock           = p.stock || {};
   const stockJSON       = JSON.stringify(stock);
-  const imagesJSON      = JSON.stringify(p.images || []);
 
-  // Human-readable stock summary for easy reading in the sheet
   const stockSummary = Object.entries(stock)
     .filter(([,qty]) => qty > 0)
     .map(([size, qty]) => `${size}:${qty}`)
     .join(', ') || 'Out of stock';
 
-  // Cols 0-13 (visible) + col 14 = images JSON
+  // 14 columns — no images column (images stay in browser localStorage)
   const row = [
     p.id,
     p.name,
@@ -198,12 +189,11 @@ function saveProduct(p) {
     p.colors      || '',
     p.description || '',
     p.topSelling  ? 'Yes' : 'No',
-    stockJSON,          // col 9  – full stock as JSON
-    stockSummary,       // col 10 – human readable
-    p.images ? p.images.length : 0,  // col 11
-    p.createdAt  || new Date().toISOString(),  // col 12
-    p.updatedAt  || '',  // col 13
-    imagesJSON           // col 14 – base64 images
+    stockJSON,
+    stockSummary,
+    p.imagesCount || 0,
+    p.createdAt  || new Date().toISOString(),
+    p.updatedAt  || ''
   ];
 
   for (let i = 1; i < allData.length; i++) {

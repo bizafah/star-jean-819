@@ -143,7 +143,37 @@ function toggleSidebar() {
 // ───────── IMAGE HANDLING ─────────
 const imageSets = { addImagePreview: [], editImagePreview: [] };
 
-function previewImages(input, previewId, append = false) {
+/**
+ * Compress an image file to max 800px wide/tall at 72% quality.
+ * Returns a base64 data URL. Reduces file size by ~85–95%.
+ */
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const MAX_SIZE = 800;
+    const QUALITY  = 0.72;
+    const reader   = new FileReader();
+    reader.onload  = (ev) => {
+      const img    = new Image();
+      img.onload   = () => {
+        let { width, height } = img;
+        // Scale down if too large
+        if (width > MAX_SIZE || height > MAX_SIZE) {
+          if (width > height) { height = Math.round(height * MAX_SIZE / width);  width = MAX_SIZE; }
+          else                { width  = Math.round(width  * MAX_SIZE / height); height = MAX_SIZE; }
+        }
+        const canvas    = document.createElement('canvas');
+        canvas.width    = width;
+        canvas.height   = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', QUALITY));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function previewImages(input, previewId, append = false) {
   const files     = Array.from(input.files);
   const maxImages = 12;
   if (!append) imageSets[previewId] = [];
@@ -152,14 +182,18 @@ function previewImages(input, previewId, append = false) {
   const toProcess = files.slice(0, remaining);
   if (files.length > remaining) showToast(`Max ${maxImages} images. ${files.length - remaining} skipped.`);
 
-  toProcess.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      imageSets[previewId].push(ev.target.result);
-      renderImagePreviews(previewId);
-    };
-    reader.readAsDataURL(file);
-  });
+  // Show a small per-image progress indicator
+  const area = document.getElementById(previewId.replace('Preview', 'Area')) || null;
+  if (area) area.innerHTML = `<i class="fas fa-spinner fa-spin"></i><p>Compressing images...</p>`;
+
+  // Compress all selected images in parallel
+  const compressed = await Promise.all(toProcess.map(f => compressImage(f)));
+  compressed.forEach(src => imageSets[previewId].push(src));
+  renderImagePreviews(previewId);
+
+  // Restore upload area
+  if (area) area.innerHTML = `<i class="fas fa-cloud-upload-alt"></i><p>Click to upload images</p><span>JPG, PNG, WEBP – up to 12 images</span>`;
+
   input.value = '';
 }
 

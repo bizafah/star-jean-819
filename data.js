@@ -34,16 +34,28 @@ function _saveProductsCache(products) {
   localStorage.setItem('sj_products', JSON.stringify(products));
 }
 
-/** Fetch fresh products from Sheets → update cache → return array */
+/** Fetch fresh products from Sheets → merge with local image cache → return array */
 async function fetchProducts() {
   if (!_sheetReady()) return getProducts();
   try {
     const res  = await fetch(`${SHEET_URL}?action=getProducts`);
     const json = await res.json();
     if (json.success && Array.isArray(json.data)) {
-      _saveProductsCache(json.data);
-      DataEvents.emit('productsLoaded', json.data);
-      return json.data;
+      // Sheets data has no images (stripped on save to keep POSTs fast).
+      // Merge with locally cached images so they aren't lost.
+      const localProducts = getProducts();
+      const merged = json.data.map(sheetProduct => {
+        const local = localProducts.find(lp => lp.id === sheetProduct.id);
+        return {
+          ...sheetProduct,
+          images: (local && local.images && local.images.length > 0)
+            ? local.images
+            : (sheetProduct.images || [])
+        };
+      });
+      _saveProductsCache(merged);
+      DataEvents.emit('productsLoaded', merged);
+      return merged;
     }
   } catch (e) { console.warn('fetchProducts failed, using cache:', e); }
   return getProducts();
@@ -53,28 +65,35 @@ function getTopSelling() {
   return getProducts().filter(p => p.topSelling === true);
 }
 
-/** Add product: POST to Sheets, refresh cache */
+/** Add product: save to localStorage, POST metadata (no images) to Sheets */
 async function addProduct(product) {
   product.id        = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   product.createdAt = new Date().toISOString();
 
-  // Optimistic local cache
+  // Optimistic local cache (includes images)
   const products = getProducts();
   products.push(product);
   _saveProductsCache(products);
 
-  await _post({ type: 'product', data: product });
+  // Send to Sheets WITHOUT images — images are too large for HTTP POST
+  // and Sheets cells can't store them meaningfully anyway.
+  // Images stay in localStorage and are loaded from cache on every device
+  // that has visited the admin panel.
+  const productForSheet = { ...product, images: [], imagesCount: (product.images || []).length };
+  await _post({ type: 'product', data: productForSheet });
   return product;
 }
 
-/** Update product: POST to Sheets, refresh cache */
+/** Update product: update localStorage, POST metadata (no images) to Sheets */
 async function updateProduct(id, updates) {
   const products = getProducts();
   const idx = products.findIndex(p => p.id === id);
   if (idx === -1) return null;
   products[idx] = { ...products[idx], ...updates, updatedAt: new Date().toISOString() };
   _saveProductsCache(products);
-  await _post({ type: 'product', data: products[idx] });
+
+  const productForSheet = { ...products[idx], images: [], imagesCount: (products[idx].images || []).length };
+  await _post({ type: 'product', data: productForSheet });
   return products[idx];
 }
 
